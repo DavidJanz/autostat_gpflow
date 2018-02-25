@@ -29,6 +29,9 @@ class KernStruct:
     def make_canonic(self):
         self.root.make_canonic()
 
+    def clone(self):
+        return copy.deepcopy(self)
+
 
 class AbstractKernelStructure:
     def __init__(self, name):
@@ -77,14 +80,19 @@ class AbstractKernelStructure:
                 setattr(result, k, copy.deepcopy(v, memo))
         return result
 
+    def clone(self):
+        return copy.deepcopy(self)
+
     def make_canonic(self):
         self._children = sorted(self._children,
                     key=lambda child: child.name)
 
 
 class OperatorKernel(AbstractKernelStructure):
-    def __init__(self, name):
+    def __init__(self, name, kernels):
         super().__init__(name)
+        for k in kernels:
+            self.add_child(k)
 
     def __repr__(self):
         return "({} {})".format(
@@ -109,7 +117,6 @@ class OperatorKernel(AbstractKernelStructure):
         for child in self.children:
             child.simplify()
             if child.is_operator and child.name == self.name:
-                grandkids = child.children
                 for grandkid in child.children:
                     self.add_child(grandkid)
                 self.rem_child(child)
@@ -121,6 +128,7 @@ class OperatorKernel(AbstractKernelStructure):
     @property
     def is_operator(self):
         return True
+
 
 class BaseKernel(AbstractKernelStructure):
     def __init__(self, name, params):
@@ -138,22 +146,6 @@ class BaseKernel(AbstractKernelStructure):
             return "({} {})".format(
                 self.name, " ".join(map(str, self.children)))
         return self.name
-
-    def extend(self, new_parent):
-        self.replace(new_parent)
-        new_parent.add_child(self)
-
-    def replace(self, new_child):
-        if self.is_toplevel:
-            self = new_child
-        else:
-            self.parent.add_child(new_child)
-            self.remove()
-
-    def remove(self):
-        if self.is_toplevel:
-            raise ValueError("Cannot remove toplevel kernel")
-        self.parent.rem_child(self)
 
     @property
     def is_operator(self):

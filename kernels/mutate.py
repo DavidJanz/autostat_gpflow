@@ -1,43 +1,53 @@
-from kernels import kernels
-import copy
+import itertools
+
+from kernels import kernel_defs
+
+_kern_base = [kernel_defs.LinKernel, kernel_defs.SEKernel, kernel_defs.PerKernel]
+_kern_op = [kernel_defs.SumKernel, kernel_defs.ProdKernel]
+_ext_pairs = list(itertools.product(_kern_base, _kern_op))
 
 
-_kern_base = [kernels.LinKernel, kernels.SEKernel, kernels.PerKernel]
-_kern_op = [kernels.SumKernel, kernels.ProdKernel]
+def replace(old_kernel, new_kernel):
+    parent = old_kernel.parent
+    parent.rem_child(old_kernel)
+    parent.add_child(new_kernel)
 
 
-def mutate(root):
+def extend(old_kernel, new_kernel, op_rule):
+    parent = old_kernel.parent
+    parent.rem_child(old_kernel)
+    parent.add_child(op_rule([old_kernel, new_kernel]))
+
+
+def remove(old_kernel):
+    parent = old_kernel.parent
+    parent.rem_child(old_kernel)
+
+
+def mutatation_generator(root):
     for i, root_k in enumerate(root.kernels):
         if root_k.is_operator:
             continue
 
         # REPLACE
-        for base in _kern_base:
-            root_copy = copy.deepcopy(root)
-            k = root_copy.kernels[i]
-            if k.name != base:
-                k.replace(base())
+        for base_rule in _kern_base:
+            root_copy = root.clone()
+            replacement = base_rule()
+            if root_copy.kernels[i].name != replacement.name:
+                replace(root_copy.kernels[i], replacement)
             else:
                 continue
-            root_copy.simplify()
             yield root_copy
 
         # EXPAND
-        for op in _kern_op:
-            for base in _kern_base:
-                root_copy = copy.deepcopy(root)
-                k = root_copy.kernels[i]
-                new_parent = op()
-                new_parent.add_child(base())
-                k = k.extend(new_parent)
-                root_copy.simplify()
-                yield root_copy
+        for (base_rule, op_rule) in _ext_pairs:
+            root_copy = root.clone()
+            extend(root_copy.kernels[i], base_rule(), op_rule)
+            yield root_copy
 
         # REMOVE
-        root_copy = copy.deepcopy(root)
-        k = root_copy.kernels[i]
-        if k.is_toplevel:
+        root_copy = root.clone()
+        if root_copy.kernels[i].is_toplevel:
             continue
-        k.remove()
-        root_copy.simplify()
+        remove(root_copy.kernels[i])
         yield root_copy
