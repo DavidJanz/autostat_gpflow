@@ -6,16 +6,19 @@ import gpflow as gpf
 import joblib
 import pickle
 
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-def test_kernel(kernel, x, y):
-    m = gpf.models.GPR(x, y, kern=kernel.root.gpf_kernel)
+
+def test_kernel(kernel_wrapper, x, y):
+    print("testing kernel")
+    m = gpf.models.GPR(x, y, kern=kernel_wrapper.gpf_kernel)
+    print("building model")
     m.likelihood.variance = 0.001
-
+    print("minimising")
     gpf.train.ScipyOptimizer().minimize(m)
-
+    print("getting ll")
     ll = m.likelihood_tensor.eval(session=m.enquire_session())
+    print("done testing kernel {}".format(ll))
     return ll
 
 
@@ -26,8 +29,6 @@ def center(arr):
 
 
 n_steps = 6
-k1 = kernel_defs.SEKernel()
-k = kernels_abstract.KernStruct(k1)
 
 results = []
 seen = set()
@@ -36,22 +37,23 @@ data = np.load("data/co2.npz")
 n_data = 25
 x, y = center(data['x'][:n_data]).reshape(-1, 1), center(data['y'][:n_data]).reshape(-1, 1)
 
-top_kernel = k
-base_kernels = [kernels_abstract.KernStruct(kernel_defs.SEKernel()),
-                kernels_abstract.KernStruct(kernel_defs.LinKernel()),
-                kernels_abstract.KernStruct(kernel_defs.PerKernel())]
+top_kernel = None
+base_kernels = [kernels_abstract.KernelWrapper(kernel_defs.SEKernel()),
+                kernels_abstract.KernelWrapper(kernel_defs.LinKernel()),
+                kernels_abstract.KernelWrapper(kernel_defs.PerKernel())]
 
 prospective_kernels = base_kernels
 
 for step in range(n_steps):
+    print("step {}".format(step))
     to_try = []
     for m in prospective_kernels:
         m.simplify()
-        pickle.dumps(m)
         if m not in seen:
             to_try.append(m)
     seen.update(to_try)
-    r = joblib.Parallel(n_jobs=8)(joblib.delayed(test_kernel)(m, x, y) for m in to_try)
+    r = joblib.Parallel(n_jobs=2)(joblib.delayed(test_kernel)(m, x, y) for m in to_try)
+    # r = [test_kernel(m, x, y) for m in to_try]
     results += zip(to_try, r)
     results = sorted(results, key=lambda x: x[-1], reverse=True)
     top_kernel, top_ll = results[0]

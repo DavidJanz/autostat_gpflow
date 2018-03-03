@@ -3,44 +3,67 @@ from itertools import chain
 import copy
 
 
-class KernStruct:
-    def __init__(self, kern):
-        kern.parent = self
-        self.root = kern
-        self.seen = []
-
-    def __repr__(self):
-        return str(self.root)
-
+class AbstractKernelBaseClass:
     @property
     def kernels(self):
-        return [k for k in self.root]
+        raise NotImplemented()
 
     def simplify(self):
-        if len(self.root._children) == 1:
-            self.root = self.root.children[0]
-        self.root.simplify()
-        self.root.make_canonic()
+        raise NotImplemented()
 
-    def add_child(self, child):
-        self.root = child
+    def _make_canonic(self):
+        raise NotImplemented()
 
-    def rem_child(self, child):
-        if self.root == child:
-            self.root = None
-
-    def make_canonic(self):
-        self.root.make_canonic()
+    @property
+    def gpf_kernel(self):
+        raise NotImplemented()
 
     def clone(self):
         return copy.deepcopy(self)
 
 
-class AbstractKernelStructure:
+class KernelWrapper(AbstractKernelBaseClass):
+    def __init__(self, kernel):
+        kernel.parent = self
+        self.kernel = kernel
+
+    def __repr__(self):
+        return str("Wrapped Kernel {}".format(self.root))
+
+    @property
+    def kernels(self):
+        return [k for k in self.kernel]
+
+    def add_child(self, child):
+        self.kernel = child
+        child.parent = self
+
+    def rem_child(self, child):
+        if self.kernel == child:
+            self.kernel = None
+            child.parent = None
+
+    def simplify(self):
+        if self.kernel.is_operator and len(self.kernel.children) == 1:
+            self.kernel = self.kernel.children[0]
+        self.kernel.simplify()
+        self._make_canonic()
+
+    def _make_canonic(self):
+        pass
+
+    @property
+    def gpf_kernel(self):
+        return self.kernel.gpf_kernel
+
+
+class AbstractKernel(AbstractKernelBaseClass):
     def __init__(self, name):
         self.name = name
-        self._children = []
         self.parent = None
+        self._children = []
+
+        self._params_fixed = False
 
     def __repr__(self):
         raise NotImplementedError('Must override')
@@ -50,29 +73,37 @@ class AbstractKernelStructure:
             yield child
         yield self
 
-    def simplify(self):
-        pass
-
     @property
-    def is_toplevel(self):
-        return isinstance(self.parent, KernStruct)
+    def kernels(self):
+        return [k for k in self]
+
+    def simplify(self):
+        raise NotImplemented()
+
+    def make_canonic(self):
+        self._children = sorted(self._children, key=lambda child: child.name)
 
     @property
     def gpf_kernel(self):
-        raise NotImplementedError('Must override')
+        raise NotImplemented()
 
-    def fix(self):
-        if not self.is_operator:
-            self._fixed = True
-        for child in self._children:
-            child.fix()
+    @property
+    def is_operator(self):
+        raise NotImplemented()
+
+    @property
+    def is_toplevel(self):
+        return isinstance(self.parent, KernelWrapper)
+
+    def fix_parameters(self):
+        raise NotImplemented()
 
     def __ensure_consistent(self):
-        if self.is_operator:
+        if not self.is_operator:
             self._params = self.params
 
     def __deepcopy__(self, memo):
-        self.__ensure_consistent
+        self.__ensure_consistent()
         cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
@@ -83,31 +114,19 @@ class AbstractKernelStructure:
                 setattr(result, k, copy.deepcopy(v, memo))
         return result
 
-    def clone(self):
-        return copy.deepcopy(self)
 
-    def make_canonic(self):
-        self._children = sorted(self._children,
-                                key=lambda child: child.name)
-
-
-class OperatorKernel(AbstractKernelStructure):
+class OperatorKernel(AbstractKernel):
     def __init__(self, name, kernels):
         super().__init__(name)
         for k in kernels:
             self.add_child(k)
 
     def __repr__(self):
-        return "({} {})".format(
-            self.name, " ".join(map(str, self.children)))
+        return "({} {})".format(self.name, " ".join(map(str, self.children)))
 
     @property
     def children(self):
         return self._children
-
-    @property
-    def is_lonely(self):
-        return len(self.children) == 1
 
     def add_child(self, child):
         self._children.append(child)
@@ -115,6 +134,7 @@ class OperatorKernel(AbstractKernelStructure):
 
     def rem_child(self, child):
         self._children.remove(child)
+        child.parent = None
 
     def simplify(self):
         for child in self.children:
@@ -132,32 +152,39 @@ class OperatorKernel(AbstractKernelStructure):
     def is_operator(self):
         return True
 
+    def fix_parameters(self):
+        for child in self.children:
+            child.fix_parameters()
 
-class BaseKernel(AbstractKernelStructure):
+
+class BaseKernel(AbstractKernel):
     def __init__(self, name, params):
-        super().__init__(name)
-        if params is not None and len(params) != self._n_params:
-            raise ValueError("Expected {} parameters, got {}"
-                    .format(self._n_params, len(params)))
-        self._params = params
+        self._n_params = None
         self._gpf_kern_method = None
         self._anchored_gpf_kern = None
-        self._fixed = False
+
+        super().__init__(name)
+
+        if params is not None and len(params) != self._n_params:
+            raise ValueError("Expected {} parameters, got {}"
+                             .format(self._n_params, len(params)))
+
+        self._params = params
 
     def __repr__(self):
-        if self.is_operator:
-            return "({} {})".format(
-                self.name, " ".join(map(str, self.children)))
         return self.name
 
     @property
     def is_operator(self):
         return False
 
+    def simplify(self):
+        pass
+
     @property
     def params(self):
-        params = list(np.array([p.read_value() for
-                    p in self.gpf_kernel.parameters]))
+        params = list(np.array([p.read_value() for p
+                                in self.gpf_kernel.parameters]))
         return params
 
     @params.setter
@@ -165,13 +192,16 @@ class BaseKernel(AbstractKernelStructure):
         for gpf_param, param in zip(self.gpf_kernel.parameters, params):
             gpf_param.assign(np.array(param))
 
+    def fix_parameters(self):
+        self._params_fixed = True
+
     @property
     def is_fixed(self):
-        return self._fixed
+        return self._params_fixed
 
     @property
     def is_anchored(self):
-        return not self._anchored_gpf_kern is None
+        return self._anchored_gpf_kern is not None
 
     @property
     def gpf_kernel(self):
