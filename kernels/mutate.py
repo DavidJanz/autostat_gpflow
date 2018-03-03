@@ -1,6 +1,8 @@
+import os
 import itertools
 
 from kernels import kernel_defs
+
 
 _kern_base = [kernel_defs.LinKernel, kernel_defs.SEKernel, kernel_defs.PerKernel]
 _kern_op = [kernel_defs.SumKernel, kernel_defs.ProdKernel]
@@ -25,6 +27,7 @@ def remove(old_kernel):
 
 
 def mutatation_generator(root):
+    yield root.clone()
     for i, root_k in enumerate(root.kernels):
         if root_k.is_operator:
             continue

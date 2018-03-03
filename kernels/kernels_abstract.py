@@ -17,7 +17,10 @@ class KernStruct:
         return [k for k in self.root]
 
     def simplify(self):
+        if len(self.root._children) == 1:
+            self.root = self.root.children[0]
         self.root.simplify()
+        self.root.make_canonic()
 
     def add_child(self, child):
         self.root = child
@@ -52,7 +55,7 @@ class AbstractKernelStructure:
 
     @property
     def is_toplevel(self):
-        return self.parent is None
+        return isinstance(self.parent, KernStruct)
 
     @property
     def gpf_kernel(self):
@@ -85,7 +88,7 @@ class AbstractKernelStructure:
 
     def make_canonic(self):
         self._children = sorted(self._children,
-                    key=lambda child: child.name)
+                                key=lambda child: child.name)
 
 
 class OperatorKernel(AbstractKernelStructure):
@@ -120,10 +123,10 @@ class OperatorKernel(AbstractKernelStructure):
                 for grandkid in child.children:
                     self.add_child(grandkid)
                 self.rem_child(child)
-        if self.is_toplevel and self.is_lonely:
-            return self.children[0]
-        if self.is_toplevel:
-            return self
+            if child.is_operator and len(child.children) == 1:
+                self.rem_child(child)
+                self.add_child(child.children[0])
+            child.make_canonic()
 
     @property
     def is_operator(self):
