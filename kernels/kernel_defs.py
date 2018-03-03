@@ -30,6 +30,8 @@ class SEKernel(kernels_abstract.BaseKernel):
 
 
 class PerKernel(kernels_abstract.BaseKernel):
+    """Note, this is not the same periodic kernel as in autostat.
+    Periodic as defined in autostat paper has to be implemented in gpflow."""
     def __init__(self, params=None):
         self._n_params = 3
         super().__init__('PER', params)
