@@ -39,32 +39,30 @@ base_kernels = [kernels_abstract.KernelWrapper(kernel_defs.SEKernel()),
 
 prospective_kernels = base_kernels
 
-for step in range(n_steps):
-    print("step {}".format(step))
-    to_try = []
-    for m in prospective_kernels:
-        m.simplify()
-        if str(m) not in seen:
-            to_try.append(m)
+with joblib.Parallel(n_jobs=2) as para:
+    for step in range(n_steps):
+        print("step {}".format(step))
+        to_try = []
+        for m in prospective_kernels:
+            m.simplify()
+            if str(m) not in seen:
+                to_try.append(m)
 
-    print("Seen {}".format(seen))
-    print("-" * 20)
-    print("Kernels to try {}".format(to_try))
-    print("-" * 20)
-    seen.update((str(m) for m in to_try))
+        print("Seen {}".format(seen))
+        print("-" * 20)
+        print("Kernels to try {}".format(to_try))
+        print("-" * 20)
+        seen.update((str(m) for m in to_try))
 
-    # todo: figure out why Parallel using joblib gets stuck on OperatorKernels
-    # r = joblib.Parallel(n_jobs=2)(joblib.delayed(test_kernel)(m, x, y) for m in to_try)
+        r = para(joblib.delayed(test_kernel)(m, x, y) for m in to_try)
 
-    r = [test_kernel(m, x, y) for m in to_try]
-    results += zip(to_try, r)
-    results = sorted(results, key=lambda x2: x2[-1], reverse=True)
-    top_kernel, top_ll = results[0]
+        results += zip(to_try, r)
+        results = sorted(results, key=lambda x2: x2[-1], reverse=True)
+        top_kernel, top_ll = results[0]
 
-    print("Top kernel is: %s (%f)" % (str(top_kernel), top_ll))
-    print("=" * 20)
+        print("Top kernel is: %s (%f)" % (str(top_kernel), top_ll))
+        print("=" * 20)
 
-    prospective_kernels = mutate.mutation_generator(top_kernel)
+        prospective_kernels = mutate.mutation_generator(top_kernel)
 
-print("-" * 20)
-print(top_kernel, top_ll)
+print("Search finished")
