@@ -1,5 +1,5 @@
 import gpflow as gpf
-from kernels import kernels_abstract
+from . import kernels_abstract
 
 
 # OPERATOR KERNELS

@@ -8,11 +8,11 @@ import joblib
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
-def test_kernel(kernel_wrapper, x, y):
-    m = gpf.models.GPR(x, y, kern=kernel_wrapper.gpf_kernel)
-    m.likelihood.variance = 0.001
-    gpf.train.ScipyOptimizer().minimize(m)
-    ll = m.likelihood_tensor.eval(session=m.enquire_session())
+def test_kernel(kernel_wrapper, x_vals, y_vals):
+    model = gpf.models.GPR(x_vals, y_vals, kern=kernel_wrapper.gpf_kernel)
+    model.likelihood.variance = 0.001
+    gpf.train.ScipyOptimizer().minimize(model)
+    ll = model.likelihood_tensor.eval(session=model.enquire_session())
     return ll
 
 
@@ -55,10 +55,10 @@ for step in range(n_steps):
 
     r = [test_kernel(m, x, y) for m in to_try]
     results += zip(to_try, r)
-    results = sorted(results, key=lambda x: x[-1], reverse=True)
+    results = sorted(results, key=lambda x2: x2[-1], reverse=True)
     top_kernel, top_ll = results[0]
 
-    prospective_kernels = mutate.mutatation_generator(top_kernel)
+    prospective_kernels = mutate.mutation_generator(top_kernel)
 
 print("-" * 20)
 print(top_kernel, top_ll)
