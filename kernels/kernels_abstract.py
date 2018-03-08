@@ -51,7 +51,9 @@ class KernelWrapper(AbstractKernelBaseClass):
         # if kernel only has one child
         if self.kernel.is_operator and len(self.kernel.children) == 1:
             # skip kernel in hierarchy
-            self.kernel = self.kernel.children[0]
+            grandchild = self.kernel.children[0]
+            self.rem_child(self.kernel)
+            self.add_child(grandchild)
         self.kernel.simplify()
 
     def _make_canonic(self):
