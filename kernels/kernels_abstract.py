@@ -178,21 +178,23 @@ class OperatorKernel(AbstractKernel):
 
 class BaseKernel(AbstractKernel):
     """Implements functionality for individual base kernels."""
-    def __init__(self, name, params):
+    def __init__(self, name):
         self._n_params = None
         self._gpf_kern_method = None
         self._anchored_gpf_kern = None
+        self._params = None
 
         super().__init__(name)
 
+    def __repr__(self):
+        return self.name
+
+    def check_params(self, params):
         if params is not None and len(params) != self._n_params:
             raise ValueError("Expected {} parameters, got {}"
                              .format(self._n_params, len(params)))
 
         self._params = params
-
-    def __repr__(self):
-        return self.name
 
     @property
     def is_operator(self):
