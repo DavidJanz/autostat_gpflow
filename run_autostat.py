@@ -13,7 +13,7 @@ def test_kernel(kernel_wrapper, x_vals, y_vals):
     model.likelihood.variance = 0.001
     gpf.train.ScipyOptimizer().minimize(model)
     ll = model.likelihood_tensor.eval(session=model.enquire_session())
-    return ll
+    return dict(kernel=kernel_wrapper.clone(), loglik=ll)
 
 
 def center(arr):
@@ -32,7 +32,6 @@ n_data = 25
 x, y = center(data['x'][:n_data]).reshape(-1, 1), center(
     data['y'][:n_data]).reshape(-1, 1)
 
-top_kernel = None
 base_kernels = [kernels_abstract.KernelWrapper(kernel_defs.SEKernel()),
                 kernels_abstract.KernelWrapper(kernel_defs.LinKernel()),
                 kernels_abstract.KernelWrapper(kernel_defs.PerKernel())]
@@ -56,13 +55,16 @@ with joblib.Parallel(n_jobs=2) as para:
 
         r = para(joblib.delayed(test_kernel)(m, x, y) for m in to_try)
 
-        results += zip(to_try, r)
-        results = sorted(results, key=lambda x2: x2[-1], reverse=True)
-        top_kernel, top_ll = results[0]
+        results += r
+        results = sorted(results, key=lambda z: z['loglik'], reverse=True)
 
-        print("Top kernel is: %s (%f)" % (str(top_kernel), top_ll))
+        print("Top kernel is: %s, log likelihood: %f, params: %s" %
+              (str(results[0]['kernel']),
+               results[0]['loglik'],
+               str(np.array([p.read_value() for p in results[0]['kernel'].gpf_kernel.parameters]))))
+
         print("=" * 20)
 
-        prospective_kernels = mutate.mutation_generator(top_kernel)
+        prospective_kernels = mutate.mutation_generator(results[0]['kernel'])
 
 print("Search finished")
