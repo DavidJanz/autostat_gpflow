@@ -239,5 +239,5 @@ class BaseKernel(AbstractKernel):
     def _ensure_consistent(self):
         """Synchronises gpf kernel and local data. Params are copied to
         ensure __deepcopy__ has access to up-to-date parameters."""
-        if not self.is_operator:
+        if not self.is_operator and self.is_anchored:
             self._params = self.params
