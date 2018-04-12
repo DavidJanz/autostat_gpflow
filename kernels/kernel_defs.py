@@ -1,5 +1,6 @@
 import gpflow as gpf
 from . import kernels_abstract
+from . import periodic_nodc
 
 
 # OPERATOR KERNELS
@@ -37,6 +38,7 @@ class PerKernel(kernels_abstract.BaseKernel):
         super().__init__('PER')
         self._n_params = 3
         self._gpf_kern_method = gpf.kernels.Periodic
+        self._gpf_kern_method = periodic_nodc.PeriodicNoDC
         self.check_params(params)
 
 
