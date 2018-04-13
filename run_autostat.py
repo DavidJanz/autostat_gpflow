@@ -8,12 +8,12 @@ import joblib
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
-def test_kernel(kernel_wrapper, x, y):
-    m = gpf.models.GPR(x, y, kern=kernel_wrapper.gpf_kernel)
-    m.likelihood.variance = 0.001
-    gpf.train.ScipyOptimizer().minimize(m)
-    ll = m.likelihood_tensor.eval(session=m.enquire_session())
-    return ll
+def test_kernel(kernel_wrapper, x_vals, y_vals):
+    model = gpf.models.GPR(x_vals, y_vals, kern=kernel_wrapper.gpf_kernel)
+    model.likelihood.variance = 0.001
+    gpf.train.ScipyOptimizer().minimize(model)
+    ll = model.likelihood_tensor.eval(session=model.enquire_session())
+    return dict(kernel=kernel_wrapper.clone(), loglik=ll)
 
 
 def center(arr):
@@ -32,33 +32,39 @@ n_data = 25
 x, y = center(data['x'][:n_data]).reshape(-1, 1), center(
     data['y'][:n_data]).reshape(-1, 1)
 
-top_kernel = None
 base_kernels = [kernels_abstract.KernelWrapper(kernel_defs.SEKernel()),
                 kernels_abstract.KernelWrapper(kernel_defs.LinKernel()),
                 kernels_abstract.KernelWrapper(kernel_defs.PerKernel())]
 
 prospective_kernels = base_kernels
 
-for step in range(n_steps):
-    print("step {}".format(step))
-    to_try = []
-    for m in prospective_kernels:
-        m.simplify()
-        if str(m) not in seen:
-            to_try.append(m)
-    print("Seen try {}".format(seen))
-    print("Kernels to try {}".format(to_try))
-    seen.update((str(m) for m in to_try))
+with joblib.Parallel(n_jobs=2) as para:
+    for step in range(n_steps):
+        print("step {}".format(step))
+        to_try = []
+        for m in prospective_kernels:
+            m.simplify()
+            if str(m) not in seen:
+                to_try.append(m)
 
-    # todo: figure out why Parallel using joblib gets stuck on OperatorKernels
-    # r = joblib.Parallel(n_jobs=2)(joblib.delayed(test_kernel)(m, x, y) for m in to_try)
+        print("Seen {}".format(seen))
+        print("-" * 20)
+        print("Kernels to try {}".format(to_try))
+        print("-" * 20)
+        seen.update((str(m) for m in to_try))
 
-    r = [test_kernel(m, x, y) for m in to_try]
-    results += zip(to_try, r)
-    results = sorted(results, key=lambda x: x[-1], reverse=True)
-    top_kernel, top_ll = results[0]
+        r = para(joblib.delayed(test_kernel)(m, x, y) for m in to_try)
 
-    prospective_kernels = mutate.mutatation_generator(top_kernel)
+        results += r
+        results = sorted(results, key=lambda z: z['loglik'], reverse=True)
 
-print("-" * 20)
-print(top_kernel, top_ll)
+        print("Top kernel is: %s, log likelihood: %f, params: %s" %
+              (str(results[0]['kernel']),
+               results[0]['loglik'],
+               str(np.array([p.read_value() for p in results[0]['kernel'].gpf_kernel.parameters]))))
+
+        print("=" * 20)
+
+        prospective_kernels = mutate.mutation_generator(results[0]['kernel'])
+
+print("Search finished")

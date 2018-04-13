@@ -1,5 +1,5 @@
 import gpflow as gpf
-from kernels import kernels_abstract
+from . import kernels_abstract
 
 
 # OPERATOR KERNELS
@@ -24,22 +24,25 @@ class ProdKernel(kernels_abstract.OperatorKernel):
 # BASE KERNELS
 class SEKernel(kernels_abstract.BaseKernel):
     def __init__(self, params=None):
+        super().__init__('SE')
         self._n_params = 2
-        super().__init__('SE', params)
         self._gpf_kern_method = gpf.kernels.RBF
+        self.check_params(params)
 
 
 class PerKernel(kernels_abstract.BaseKernel):
     """Note, this is not the same periodic kernel as in autostat.
     Periodic as defined in autostat paper has to be implemented in gpflow."""
     def __init__(self, params=None):
+        super().__init__('PER')
         self._n_params = 3
-        super().__init__('PER', params)
         self._gpf_kern_method = gpf.kernels.Periodic
+        self.check_params(params)
 
 
 class LinKernel(kernels_abstract.BaseKernel):
     def __init__(self, params=None):
+        super().__init__('LIN')
         self._n_params = 1
-        super().__init__('LIN', params)
         self._gpf_kern_method = gpf.kernels.Linear
+        self.check_params(params)
