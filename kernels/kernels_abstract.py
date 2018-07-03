@@ -22,6 +22,12 @@ class AbstractKernelBaseClass:
     def clone(self):
         return copy.deepcopy(self)
 
+    def break_into_summands(self):
+        """Takes a kernel, expands it into a polynomial, and breaks terms up into a list.
+        Always returns a list.
+        """
+        raise NotImplementedError
+
 
 class KernelWrapper(AbstractKernelBaseClass):
     """The parent object for every kernel expression."""
@@ -64,6 +70,12 @@ class KernelWrapper(AbstractKernelBaseClass):
     @property
     def gpf_kernel(self):
         return self.kernel.gpf_kernel
+
+    def break_into_summands(self):
+        """Takes a kernel, expands it into a polynomial, and breaks terms up into a list.
+        Always returns a list.
+        """
+        return self.kernel.break_into_summands()
 
 
 class AbstractKernel(AbstractKernelBaseClass):
@@ -248,3 +260,11 @@ class BaseKernel(AbstractKernel):
         ensure __deepcopy__ has access to up-to-date parameters."""
         if not self.is_operator and self.is_anchored:
             self._params = self.params
+
+    def break_into_summands(self):
+        """Takes a kernel, expands it into a polynomial, and breaks terms up into a list.
+
+        Mutually Recursive with distribute_products_k().
+        Always returns a list.
+        """
+        return [self]

@@ -1,3 +1,5 @@
+import itertools
+
 import gpflow as gpf
 from . import kernels_abstract
 from . import periodic_nodc
@@ -12,6 +14,9 @@ class SumKernel(kernels_abstract.OperatorKernel):
     def gpf_kernel(self):
         return gpf.kernels.Sum([c.gpf_kernel for c in self.children])
 
+    def break_into_summands(self):
+        return [subop for op in self._children for subop in op.break_into_summands()]
+
 
 class ProdKernel(kernels_abstract.OperatorKernel):
     def __init__(self, kernels):
@@ -20,6 +25,14 @@ class ProdKernel(kernels_abstract.OperatorKernel):
     @property
     def gpf_kernel(self):
         return gpf.kernels.Product([c.gpf_kernel for c in self.children])
+
+    def break_into_summands(self):
+        # Recursively distribute each of the terms to be multiplied.
+        distributed_ops = [op.break_into_summands() for op in self._children]
+
+        # Now produce a sum of all combinations of terms in the products.
+        new_prod_ks = [ProdKernel(kernels=prod) for prod in itertools.product(*distributed_ops)]
+        return new_prod_ks
 
 
 # BASE KERNELS
@@ -34,7 +47,7 @@ class SEKernel(kernels_abstract.BaseKernel):
 class PerKernel(kernels_abstract.BaseKernel):
     """See definition in https://arxiv.org/pdf/1402.4304.pdf"""
     def __init__(self, params=None):
-        super().__init__('PER')
+        super().__init__('PERNoDC')
         self._n_params = 3
         self._gpf_kern_method = periodic_nodc.PeriodicNoDC
         self.check_params(params)
