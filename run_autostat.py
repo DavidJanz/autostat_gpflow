@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import numpy as np
 import os
-from kernels import kernels_abstract, kernel_defs, mutate
 import gpflow as gpf
 import joblib
+
+from kernels import kernels_abstract, kernel_defs, mutate
+from report.time_series_report import kernel_description
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -68,3 +70,6 @@ with joblib.Parallel(n_jobs=2) as para:
         prospective_kernels = mutate.mutation_generator(results[0]['kernel'])
 
 print("Search finished")
+
+report_vars = {'dataset_name': 'co2'}
+report_vars.update(kernel_description(results[0]['kernel']))
