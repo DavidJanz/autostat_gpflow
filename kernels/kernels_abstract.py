@@ -27,7 +27,7 @@ class KernelWrapper(AbstractKernelBaseClass):
     """The parent object for every kernel expression."""
     def __init__(self, kernel):
         kernel.parent = self
-        self.kernel = kernel
+        self.kernel = kernel  # type: AbstractKernel
 
     def __repr__(self):
         return str("Wrapped Kernel {}".format(self.kernel))
@@ -38,20 +38,22 @@ class KernelWrapper(AbstractKernelBaseClass):
 
     def add_child(self, child):
         """KernelWrapper has only one child at a time."""
+        if self.kernel is not None:
+            self.rem_child(self.kernel)
         self.kernel = child
         child.parent = self
 
     def rem_child(self, child):
         """KernelWrapper has only one child at a time."""
-        if self.kernel == child:
-            self.kernel = None
-            child.parent = None
+        assert self.kernel == child, "Kernel is not the child of KernelWrapper"
+        self.kernel = None
+        child.parent = None
 
     def simplify(self):
         # if kernel only has one child
-        if self.kernel.is_operator and len(self.kernel.children) == 1:
+        while self.kernel.is_operator and len(self.kernel._children) == 1:
             # skip kernel in hierarchy
-            grandchild = self.kernel.children[0]
+            grandchild = self.kernel._children[0]
             self.rem_child(self.kernel)
             self.add_child(grandchild)
         self.kernel.simplify()
@@ -131,8 +133,11 @@ class OperatorKernel(AbstractKernel):
     children."""
     def __init__(self, name, kernels):
         super().__init__(name)
-        for k in kernels:
-            self.add_child(k)
+        if isinstance(kernels, AbstractKernel):
+            self.add_child(kernels)
+        else:
+            for k in kernels:
+                self.add_child(k)
 
     def __repr__(self):
         return "({} {})".format(self.name, " ".join(map(str, self.children)))
